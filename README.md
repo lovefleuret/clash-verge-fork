@@ -1,3 +1,5 @@
+> **个人修改版**：在官方稳定版基础上增加「托盘图标显示出站模式」，修改内容、编译方法和跟进官方版本的步骤见 [FORK.md](./FORK.md)。
+
 <h1 align="center">
   <img src="./src-tauri/icons/icon.png" alt="Clash" width="128" />
   <br>
