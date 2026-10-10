@@ -50,10 +50,28 @@ struct TrayMenuOptions {
 #[derive(Clone)]
 struct TrayState {}
 
+#[derive(Clone, Copy)]
 enum IconKind {
     Common,
     SysProxy,
     Tun,
+}
+
+#[derive(Clone, Copy)]
+enum OutboundMode {
+    Rule,
+    Global,
+    Direct,
+}
+
+impl OutboundMode {
+    async fn current() -> Self {
+        match Config::clash().await.latest_arc().get_mode().as_deref() {
+            Some("global") => Self::Global,
+            Some("direct") => Self::Direct,
+            _ => Self::Rule,
+        }
+    }
 }
 
 struct LatencyMenuItem {
@@ -90,10 +108,10 @@ impl TrayState {
         } else {
             IconKind::Common
         };
-        Self::load_icon(verge, kind).await
+        Self::load_icon(verge, kind, OutboundMode::current().await).await
     }
 
-    async fn load_icon(verge: &IVerge, kind: IconKind) -> (bool, Cow<'_, [u8]>) {
+    async fn load_icon(verge: &IVerge, kind: IconKind, mode: OutboundMode) -> (bool, Cow<'_, [u8]>) {
         let (custom_enabled, icon_name) = match kind {
             IconKind::Common => (verge.common_tray_icon.unwrap_or(false), "common"),
             IconKind::SysProxy => (verge.sysproxy_tray_icon.unwrap_or(false), "sysproxy"),
@@ -107,39 +125,48 @@ impl TrayState {
             return (true, Cow::Owned(data));
         }
 
-        Self::default_icon(verge, kind)
+        Self::default_icon(verge, kind, mode)
     }
 
     #[allow(clippy::missing_const_for_fn)]
-    fn default_icon(verge: &IVerge, kind: IconKind) -> (bool, Cow<'_, [u8]>) {
+    fn default_icon(verge: &IVerge, kind: IconKind, mode: OutboundMode) -> (bool, Cow<'_, [u8]>) {
+        use IconKind::{Common, SysProxy, Tun};
+        use OutboundMode::{Direct, Global, Rule};
+
         #[cfg(target_os = "macos")]
         {
             let is_mono = verge.tray_icon.as_deref().unwrap_or("monochrome") == "monochrome";
             if is_mono {
-                return (
-                    false,
-                    match kind {
-                        IconKind::Common => Cow::Borrowed(include_bytes!("../../../icons/tray-icon-mono.ico")),
-                        IconKind::SysProxy => {
-                            Cow::Borrowed(include_bytes!("../../../icons/tray-icon-sys-mono-new.ico"))
-                        }
-                        IconKind::Tun => Cow::Borrowed(include_bytes!("../../../icons/tray-icon-tun-mono-new.ico")),
-                    },
-                );
+                let bytes: &'static [u8] = match (kind, mode) {
+                    (Common, Rule) => include_bytes!("../../../icons/tray-icon-mono-rule.ico"),
+                    (Common, Global) => include_bytes!("../../../icons/tray-icon-mono-global.ico"),
+                    (Common, Direct) => include_bytes!("../../../icons/tray-icon-mono-direct.ico"),
+                    (SysProxy, Rule) => include_bytes!("../../../icons/tray-icon-sys-mono-rule.ico"),
+                    (SysProxy, Global) => include_bytes!("../../../icons/tray-icon-sys-mono-global.ico"),
+                    (SysProxy, Direct) => include_bytes!("../../../icons/tray-icon-sys-mono-direct.ico"),
+                    (Tun, Rule) => include_bytes!("../../../icons/tray-icon-tun-mono-rule.ico"),
+                    (Tun, Global) => include_bytes!("../../../icons/tray-icon-tun-mono-global.ico"),
+                    (Tun, Direct) => include_bytes!("../../../icons/tray-icon-tun-mono-direct.ico"),
+                };
+                return (false, Cow::Borrowed(bytes));
             }
         }
 
         #[cfg(not(target_os = "macos"))]
         let _ = verge;
 
-        (
-            false,
-            match kind {
-                IconKind::Common => Cow::Borrowed(include_bytes!("../../../icons/tray-icon.ico")),
-                IconKind::SysProxy => Cow::Borrowed(include_bytes!("../../../icons/tray-icon-sys.ico")),
-                IconKind::Tun => Cow::Borrowed(include_bytes!("../../../icons/tray-icon-tun.ico")),
-            },
-        )
+        let bytes: &'static [u8] = match (kind, mode) {
+            (Common, Rule) => include_bytes!("../../../icons/tray-icon-rule.ico"),
+            (Common, Global) => include_bytes!("../../../icons/tray-icon-global.ico"),
+            (Common, Direct) => include_bytes!("../../../icons/tray-icon-direct.ico"),
+            (SysProxy, Rule) => include_bytes!("../../../icons/tray-icon-sys-rule.ico"),
+            (SysProxy, Global) => include_bytes!("../../../icons/tray-icon-sys-global.ico"),
+            (SysProxy, Direct) => include_bytes!("../../../icons/tray-icon-sys-direct.ico"),
+            (Tun, Rule) => include_bytes!("../../../icons/tray-icon-tun-rule.ico"),
+            (Tun, Global) => include_bytes!("../../../icons/tray-icon-tun-global.ico"),
+            (Tun, Direct) => include_bytes!("../../../icons/tray-icon-tun-direct.ico"),
+        };
+        (false, Cow::Borrowed(bytes))
     }
 }
 
@@ -433,6 +460,12 @@ impl Tray {
         let sys_proxy_text = clash_verge_i18n::t!("tray.tooltip.systemProxy");
         let tun_text = clash_verge_i18n::t!("tray.tooltip.tun");
         let profile_text = clash_verge_i18n::t!("tray.tooltip.profile");
+        let mode_text = clash_verge_i18n::t!("tray.outboundModes");
+        let mode_value = match OutboundMode::current().await {
+            OutboundMode::Rule => clash_verge_i18n::t!("tray.rule"),
+            OutboundMode::Global => clash_verge_i18n::t!("tray.global"),
+            OutboundMode::Direct => clash_verge_i18n::t!("tray.direct"),
+        };
 
         let v = env!("CARGO_PKG_VERSION");
         let reassembled_version = v.split_once('+').map_or_else(
@@ -441,12 +474,14 @@ impl Tray {
         );
 
         let tooltip = format!(
-            "Clash Verge {}\n{}: {}\n{}: {}\n{}: {}",
+            "Clash Verge {}\n{}: {}\n{}: {}\n{}: {}\n{}: {}",
             reassembled_version,
             sys_proxy_text,
             switch_str(system_proxy),
             tun_text,
             switch_str(tun_mode),
+            mode_text,
+            mode_value,
             profile_text,
             current_profile_name
         );
@@ -483,6 +518,7 @@ impl Tray {
         logging_error!(Type::Tray, self.update_menu().await);
         let verge = Config::verge().await.data_arc();
         logging_error!(Type::Tray, self.update_icon(&verge).await);
+        logging_error!(Type::Tray, self.update_tooltip().await);
     }
 
     async fn create_tray_from_handle(&self, app_handle: &AppHandle) -> Result<()> {
