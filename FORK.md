@@ -51,6 +51,10 @@
 
 ## 编译环境（Windows）
 
+> 当前开发机已卸载本地编译环境，只改代码，统一用 GitHub Actions 打包（见下文）。
+> 项目自带的 git 提交/推送钩子依赖 Rust 和 pnpm，因此已在本地关闭（取消了 `core.hooksPath`），`git commit` / `git push` 不会再做格式检查。
+> 以后如需本地编译，按下表重新安装后执行 `pnpm install`，会自动重新启用这些钩子。
+
 为节省 C 盘空间，工具尽量安装在 D 盘：
 
 | 工具 | 位置 | 说明 |
