@@ -136,7 +136,12 @@ pub(super) fn clash_effects(patch: &serde_yaml_ng::Mapping) -> Effects {
         effects.extend(match key.as_str() {
             Some("secret" | "external-controller") => &[Effect::RestartCore][..],
             Some("allow-lan") => &[Effect::ClashConfig][..],
-            Some("mode") => &[Effect::ClashConfig, Effect::TrayMenu, Effect::TrayIcon][..],
+            Some("mode") => &[
+                Effect::ClashConfig,
+                Effect::TrayMenu,
+                Effect::TrayTooltip,
+                Effect::TrayIcon,
+            ][..],
             _ => {
                 logging!(
                     warn,
@@ -264,7 +269,12 @@ mod tests {
             (clash_mapping(&[("secret", "s")]), &[Effect::RestartCore]),
             (
                 clash_mapping(&[("mode", "rule")]),
-                &[Effect::ClashConfig, Effect::TrayIcon, Effect::TrayMenu],
+                &[
+                    Effect::ClashConfig,
+                    Effect::TrayIcon,
+                    Effect::TrayMenu,
+                    Effect::TrayTooltip,
+                ],
             ),
             (clash_mapping(&[("allow-lan", "true")]), &[Effect::ClashConfig]),
             (clash_mapping(&[("not-a-known-key", "1")]), &[Effect::ClashConfig]),
