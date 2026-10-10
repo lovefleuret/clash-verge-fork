@@ -6,7 +6,7 @@
 |---|---|
 | 当前基于 | `v2.5.8` |
 | 修改分支 | `feature/tray-mode-icon` |
-| 已编译平台 | Windows x64 |
+| 打包方式 | 本地编译（Windows），或 GitHub Actions 云端打包（全平台，见下文） |
 
 ## 修改内容：托盘图标显示出站模式
 
@@ -40,12 +40,13 @@
 | `src-tauri/src/feat/effects.rs` | 修改模式时同时刷新悬停提示 |
 | `src-tauri/icons/tray-icon*-{rule,global,direct}.ico` | 18 个新图标（原有图标保留，作为生成脚本的底图） |
 | `fork/` | 本修改版专用的脚本、配置与预览图，与官方文件分开存放，减少 rebase 冲突 |
+| `.github/workflows/fork-build.yml` | 手动触发的全平台打包工作流 |
 | `FORK.md`、`README.md` 顶部 2 行 | 本说明 |
 
 ## 安装使用注意
 
 1. **关闭自动检查更新**（设置 →「杂项设置」→「自动检查更新」）。否则官方发布新版本后会自动更新为官方版，本修改会被覆盖。
-2. 安装包没有代码签名：Windows 会提示「未知发布者」，选择「仍要运行」即可。
+2. 安装包没有代码签名：Windows 会提示「未知发布者」，选择「仍要运行」即可；macOS 会提示「已损坏」，在终端执行 `xattr -cr "/Applications/Clash Verge.app"` 后再打开。
 3. 版本号与官方相同，安装时会直接覆盖已安装的官方版。
 
 ## 编译环境（Windows）
@@ -76,6 +77,37 @@ pnpm build -c fork/tauri-no-updater.json
 - 生成的安装包：`target\release\bundle\nsis\Clash Verge_<版本>_x64-setup.exe`
 - 首次编译约 15～20 分钟；`target` 目录约 5 GB，可随时删除，删除后下次重新完整编译。
 
+## GitHub Actions 云端打包（全平台）
+
+工作流文件：`.github/workflows/fork-build.yml`，**只能手动触发**，不会自动运行。
+
+1. 打开仓库的 Actions 页面 → 左侧选择 **Fork Build** → 右侧点 **Run workflow**。
+2. 选择分支（`feature/tray-mode-icon`），勾选要打包的平台（默认 7 个全选）。
+3. 需要发布到 Release 页面时，勾选 **Publish a GitHub Release**，否则只生成临时下载文件。
+4. 点 **Run workflow**，等待 30～40 分钟（之后有编译缓存会快一些）。
+
+| 平台 | 产物 |
+|---|---|
+| Windows x64 / ARM64 | `.exe` 安装包 |
+| macOS Apple Silicon / Intel | `.dmg` |
+| Linux x64 / ARM64 / ARMv7 | `.deb`、`.rpm` |
+
+下载位置：
+
+- **不发布 Release**：在这次运行的页面底部「Artifacts」中下载，每个平台一个 zip，保留 90 天。
+- **发布 Release**：仓库 Releases 页面会出现 `fork-v<版本>-<运行编号>`，附件即各平台安装包，永久保留。部分平台编译失败时，Release 只包含成功的平台，可单独重新运行失败的平台后再发布一次。
+
+### 停用官方的工作流
+
+仓库里带着官方的工作流文件。其中两个会在本仓库自动运行，需要在网页上停用（Actions 页面 → 选择该工作流 → 右上角「···」→ **Disable workflow**）：
+
+| 工作流 | 原因 |
+|---|---|
+| `autobuild.yml` | 每天北京时间 6:00、18:00 定时运行 |
+| `release.yml` | 推送 `v*.*.*` 格式的 tag 时运行 |
+
+停用状态保存在 GitHub 仓库设置中，不修改文件，因此不影响 rebase。不要删除这些文件，否则每次 rebase 都可能冲突。
+
 ## 跟进官方新稳定版
 
 官方发布新的稳定版（例如 `v2.6.0`）后：
@@ -94,7 +126,7 @@ git rebase --onto v2.6.0 v2.5.8
 - `src-tauri/src/feat/effects.rs`：官方改动了 `mode` 对应的 effect 列表或其测试时。
 - `README.md` 顶部：官方改动了 README 开头时。
 
-解决冲突后执行 `git rebase --continue`，然后重新执行上面的「编译打包」三条命令，确认没问题后推送：
+解决冲突后执行 `git rebase --continue`，然后在本地重新执行上面的「编译打包」三条命令，或者推送后用 GitHub Actions 打包。推送命令：
 
 ```bash
 git push --force-with-lease origin feature/tray-mode-icon
