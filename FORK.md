@@ -12,13 +12,13 @@
 
 官方版本只在切换「系统代理 / TUN」时改变托盘图标，切换出站模式（规则 / 全局 / 直连）时图标不变，必须点开托盘菜单才能看到当前模式。
 
-本版本在托盘图标右下角加了字母角标：
+本版本在托盘图标右下角加了符号角标：
 
 | 角标 | 出站模式 | 颜色（彩色图标） |
 |---|---|---|
-| **R** | 规则 Rule | 青绿 |
-| **G** | 全局 Global | 蓝 |
-| **D** | 直连 Direct | 深灰 |
+| 分叉箭头 | 规则 Rule | 青绿 |
+| 地球 | 全局 Global | 蓝 |
+| 直线箭头 | 直连 Direct | 灰 |
 
 底色含义不变：粉紫 = 普通，橙 = 系统代理，绿 = TUN。另外，鼠标悬停提示中增加了一行「出站模式」。
 
@@ -140,11 +140,13 @@ rebase 会改写提交历史，所以推送必须带 `--force-with-lease`，这�
 
 ## 修改图标
 
-图标由脚本生成：在原图标右下角叠加几何绘制的字母角标，不依赖字体。需要 Python（Pillow）和 ImageMagick（`magick` 命令）。
+图标由脚本生成：在原图标右下角叠加几何绘制的符号角标，输出与原图标相同的 PNG 压缩 ICO。只需要 Python（Pillow）。
+
+托盘实际只用 ICO 里最大的 256px 帧，由系统缩小到托盘尺寸，所以调整时以预览图里缩小后的效果为准。
 
 ```bash
 python fork/gen-tray-mode-icons.py src-tauri/icons <临时输出目录>
 python fork/preview-tray-mode-icons.py src-tauri/icons <临时输出目录> fork/tray-mode-icons-preview.png
 ```
 
-角标颜色（`MODE_COLOR`）、大小（`BADGE`）、透明间隙（`GAP`）都在脚本开头。确认预览满意后，把输出目录中的 `.ico` 复制到 `src-tauri/icons/`。
+角标颜色（`MODE_COLOR`）、各尺寸的直径和透明间隙（`BADGE`）在脚本开头，符号形状在 `glyph_mask`。确认预览满意后，把输出目录中的 `.ico` 复制到 `src-tauri/icons/`。

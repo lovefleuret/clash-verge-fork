@@ -1,24 +1,27 @@
-"""Generate outbound-mode tray icon variants (R = rule, G = global, D = direct).
+"""Generate outbound-mode tray icon variants (rule = fork arrow, global = globe, direct = arrow).
 
-Each variant is the existing per-size ICO frame with a letter badge in the
-bottom-right corner. Letters are drawn geometrically (no font dependency).
+Each variant is the existing per-size ICO frame with a symbol badge in the
+bottom-right corner, separated from the base icon by a transparent ring.
 
 usage: python fork/gen-tray-mode-icons.py src-tauri/icons <out_dir>
 
-Requires Pillow and ImageMagick (`magick`) on PATH. Base icons are the
-original tray-icon*.ico files, which must therefore stay in src-tauri/icons.
+Requires Pillow. Base icons are the original tray-icon*.ico files, which must
+therefore stay in src-tauri/icons.
 """
-import subprocess
+import io
+import struct
 import sys
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-SS = 8  # supersampling factor
-BADGE = 0.47  # badge diameter relative to icon size
-GAP = 0.06  # transparent ring around badge relative to icon size
+SS = 16  # supersampling factor
 
-MODE_COLOR = {"rule": (13, 148, 136, 255), "global": (37, 99, 235, 255), "direct": (71, 85, 105, 255)}
+# Badge diameter / transparent gap in px per frame size. Diameters are odd so the
+# badge centre sits on a pixel centre and 1px glyph strokes stay crisp at 16px.
+BADGE = {16: (9, 1), 24: (13, 1.5), 32: (17, 2), 48: (27, 3), 64: (35, 4), 256: (137, 16)}
+
+MODE_COLOR = {"rule": (13, 148, 136, 255), "global": (37, 99, 235, 255), "direct": (107, 114, 128, 255)}
 
 # base file -> (output stem, is_mono)
 BASES = {
@@ -31,83 +34,71 @@ BASES = {
 }
 
 
-def letter_mask(letter: str, box: int) -> Image.Image:
-    """Bold geometric letter centred in a box x box mask."""
-    m = Image.new("L", (box, box), 0)
-    h = box * 0.62
-    w = box * {"D": 0.52, "R": 0.5}.get(letter, 0.58)
-    x0, y0 = (box - w) / 2, (box - h) / 2
-    x1, y1 = x0 + w, y0 + h
-    s = h * 0.24  # stroke
+def glyph_mask(mode: str, size: int, big: int, cx: float, cy: float, unit: float) -> Image.Image:
+    """Symbol mask; coordinates are in 16px-frame pixels around the badge centre, scaled by `unit`."""
+    m = Image.new("L", (big, big), 0)
     d = ImageDraw.Draw(m)
-    if letter == "D":
-        rx = w * 0.5
-        d.rectangle([x0, y0, x1 - rx, y1], fill=255)
-        d.ellipse([x1 - 2 * rx, y0, x1, y1], fill=255)
-        inner = Image.new("L", (box, box), 0)
-        di = ImageDraw.Draw(inner)
-        di.rectangle([x0 + s, y0 + s, x1 - rx, y1 - s], fill=255)
-        di.ellipse([x1 - 2 * rx + s, y0 + s, x1 - s, y1 - s], fill=255)
-        m = ImageChops.subtract(m, inner)
-    elif letter == "R":
-        ym = y0 + h * 0.56  # bowl bottom
-        rb = (ym - y0) / 2
-        d.rectangle([x0, y0, x0 + s, y1], fill=255)
-        d.rectangle([x0, y0, x1 - rb, ym], fill=255)
-        d.ellipse([x1 - 2 * rb, y0, x1, ym], fill=255)
-        inner = Image.new("L", (box, box), 0)
-        di = ImageDraw.Draw(inner)
-        di.rectangle([x0 + s, y0 + s, x1 - rb, ym - s], fill=255)
-        di.ellipse([x1 - 2 * rb + s, y0 + s, x1 - s, ym - s], fill=255)
-        m = ImageChops.subtract(m, inner)
-        d = ImageDraw.Draw(m)
-        lx = x0 + w * 0.38
-        d.polygon([(lx, ym - s), (lx + s * 1.15, ym - s), (x1, y1), (x1 - s * 1.2, y1)], fill=255)
-    else:  # G
-        d.ellipse([x0, y0, x1, y1], fill=255)
-        d.ellipse([x0 + s, y0 + s, x1 - s, y1 - s], fill=0)
-        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-        # opening on the upper right
-        d.pieslice([x0 - s, y0 - s, x1 + s, y1 + s], -62, 2, fill=0)
-        # crossbar
-        d.rectangle([cx - s * 0.1, cy - s * 0.1, x1, cy + s * 0.9], fill=255)
+
+    def p(x, y):
+        return (cx + x * unit, cy + y * unit)
+
+    def w(v):
+        return max(1, round(v * unit))
+
+    def ellipse(rx, ry, stroke):
+        # PIL strokes inside the bbox; widen it so the stroke is centred on the path
+        h = stroke / 2
+        d.ellipse([p(-rx - h, -ry - h), p(rx + h, ry + h)], outline=255, width=w(stroke))
+
+    # Tauri hands the largest ICO frame to the OS, which downsamples it for the tray,
+    # so large frames get heavier strokes to survive the scaling.
+    sw = 1 if size <= 32 else 1.5
+    if mode == "direct":
+        d.polygon([p(-3.2, -sw / 2), p(-0.5, -sw / 2), p(-0.5, sw / 2), p(-3.2, sw / 2)], fill=255)
+        d.polygon([p(-1, -3.1), p(3.1, 0), p(-1, 3.1)], fill=255)
+    elif mode == "rule":
+        d.line([p(0, 3.3), p(0, -0.2)], fill=255, width=w(sw))
+        d.line([p(-1.6, -1.3), p(0, 0.3), p(1.6, -1.3)], fill=255, width=w(sw), joint="curve")
+        d.polygon([p(-3, -3), p(-0.4, -3), p(-3, -0.4)], fill=255)
+        d.polygon([p(3, -3), p(0.4, -3), p(3, -0.4)], fill=255)
+    else:
+        # The badge itself is the globe outline; only the equator and one meridian stay legible.
+        d.line([p(-4.5, 0), p(4.5, 0)], fill=255, width=w(sw))
+        ellipse(1.5 if sw == 1 else 1.75, 4, sw)
     return m
 
 
-def badge_layers(size: int, letter: str, mono: bool, color):
+def badge_layers(size: int, mode: str, mono: bool, color):
     """Return (erase_mask, badge_rgba) at `size`, rendered with supersampling."""
+    dia, gap = BADGE.get(size) or (round(size * 17 / 32) | 1, size / 16)
     big = size * SS
-    dia = round(size * BADGE) * SS
-    gap = max(1, round(size * GAP)) * SS
-    cx = cy = big - dia / 2
+    r = dia / 2 * SS
+    cx = cy = big - r
 
     erase = Image.new("L", (big, big), 0)
-    ImageDraw.Draw(erase).ellipse(
-        [cx - dia / 2 - gap, cy - dia / 2 - gap, cx + dia / 2 + gap, cy + dia / 2 + gap], fill=255
-    )
+    g = gap * SS
+    ImageDraw.Draw(erase).ellipse([cx - r - g, cy - r - g, cx + r + g, cy + r + g], fill=255)
 
     disc = Image.new("L", (big, big), 0)
-    ImageDraw.Draw(disc).ellipse([cx - dia / 2, cy - dia / 2, cx + dia / 2, cy + dia / 2], fill=255)
-    let = Image.new("L", (big, big), 0)
-    let.paste(letter_mask(letter, dia), (round(cx - dia / 2), round(cy - dia / 2)))
+    ImageDraw.Draw(disc).ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
+    glyph = ImageChops.multiply(glyph_mask(mode, size, big, cx, cy, dia / 9 * SS), disc)
 
     if mono:
-        # template icon: only alpha matters, letter is cut out of a white disc
-        alpha = ImageChops.subtract(disc, let)
+        # template icon: only alpha matters, symbol is cut out of a white disc
         badge = Image.new("RGBA", (big, big), (255, 255, 255, 0))
-        badge.putalpha(alpha)
+        badge.putalpha(ImageChops.subtract(disc, glyph))
     else:
         badge = Image.new("RGBA", (big, big), (0, 0, 0, 0))
         badge.paste(Image.new("RGBA", (big, big), color), mask=disc)
-        badge.paste(Image.new("RGBA", (big, big), (255, 255, 255, 255)), mask=let)
+        badge.paste(Image.new("RGBA", (big, big), (255, 255, 255, 255)), mask=glyph)
 
-    return erase.resize((size, size), Image.LANCZOS), badge.resize((size, size), Image.LANCZOS)
+    return erase.resize((size, size), Image.BOX), badge.resize((size, size), Image.BOX)
 
 
-def compose(frame: Image.Image, letter: str, mono: bool, color) -> Image.Image:
+def compose(frame: Image.Image, mode: str, mono: bool, color) -> Image.Image:
     frame = frame.convert("RGBA")
     size = frame.width
-    erase, badge = badge_layers(size, letter, mono, color)
+    erase, badge = badge_layers(size, mode, mono, color)
     r, g, b, a = frame.split()
     a = ImageChops.multiply(a, ImageChops.invert(erase))
     out = Image.merge("RGBA", (r, g, b, a))
@@ -124,22 +115,29 @@ def ico_frames(path: Path):
     return frames
 
 
+def write_ico(path: Path, frames):
+    """PNG-compressed ICO, same layout as the original tray icons."""
+    blobs = []
+    for f in frames:
+        buf = io.BytesIO()
+        f.save(buf, "PNG", optimize=True)
+        blobs.append(buf.getvalue())
+    out = struct.pack("<HHH", 0, 1, len(frames))
+    offset = 6 + 16 * len(frames)
+    for f, blob in zip(frames, blobs):
+        dim = 0 if f.width >= 256 else f.width
+        out += struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(blob), offset)
+        offset += len(blob)
+    path.write_bytes(out + b"".join(blobs))
+
+
 def main(src: Path, out: Path):
     out.mkdir(parents=True, exist_ok=True)
-    png_dir = out / "_png"
-    png_dir.mkdir(exist_ok=True)
     for base, (stem, mono) in BASES.items():
         frames = ico_frames(src / base)
-        for mode, letter in (("rule", "R"), ("global", "G"), ("direct", "D")):
-            pngs = []
-            for f in frames:
-                img = compose(f, letter, mono, MODE_COLOR[mode])
-                p = png_dir / f"{stem}-{mode}-{img.width}.png"
-                img.save(p)
-                pngs.append(str(p))
-            # largest frame last keeps the ICO directory order like the originals don't matter
+        for mode in ("rule", "global", "direct"):
             target = out / f"{stem}-{mode}.ico"
-            subprocess.run(["magick", *pngs, str(target)], check=True)
+            write_ico(target, [compose(f, mode, mono, MODE_COLOR[mode]) for f in frames])
             print(target.name, [f.width for f in frames])
 
 

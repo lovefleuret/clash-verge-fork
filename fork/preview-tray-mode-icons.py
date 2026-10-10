@@ -53,7 +53,8 @@ def main(src: Path, gen: Path, out: Path):
                 d.rectangle([x0, yy, x0 + CELL - 20, yy + 54], fill=bg + (255,))
                 xx = x0 + 10
                 for sz in (16, 24, 32):
-                    f = frame(path, sz)
+                    # the app always loads the largest ICO frame and the OS scales it down
+                    f = frame(path, 256).resize((sz, sz), Image.LANCZOS)
                     if kind == "mono":
                         f = tint(f, fg)  # emulate macOS template rendering
                     f = f.resize((sz * 2, sz * 2), Image.NEAREST)
