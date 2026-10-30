@@ -43,6 +43,26 @@
 | `.github/workflows/fork-build.yml` | 手动触发的全平台打包工作流 |
 | `FORK.md`、`README.md` 顶部 2 行 | 本说明 |
 
+## 修改内容：切换到规则模式前先退出 Claude 桌面端
+
+从其他模式切换到「规则」时，会先退出 Claude 桌面端，确认它已完全退出后才切换。托盘菜单、主界面、代理页、快捷键都会触发。
+
+1. 先让 Claude 正常退出（macOS 发送 SIGTERM，Windows 用不带 `/F` 的 `taskkill`），最多等 10 秒。
+2. 超时仍未退出则强制结束，再等最多 3 秒。
+3. 仍未退出时不切换模式，界面弹出错误提示并回到原模式。
+
+- Claude 没有运行时直接切换，不会有任何等待。
+- 已经是规则模式时（例如重复按快捷键）不会退出 Claude。
+- 切换后不会自动重新打开 Claude。
+- 识别方式：macOS 匹配 `Claude.app/Contents/MacOS/Claude`；Windows 匹配 `AnthropicClaude` 或 `WindowsApps` 目录下的 `claude.exe`，不会误杀 Claude Code 命令行。Linux 不处理。
+- Windows 上 Claude 关闭窗口通常只是缩到托盘，所以一般会等满 10 秒后强制结束。
+
+| 文件 | 说明 |
+|---|---|
+| `src-tauri/src/feat/claude_desktop.rs` | 查找并退出 Claude 桌面端 |
+| `src-tauri/src/feat/clash.rs` | 切换到规则模式前调用上面的逻辑 |
+| `crates/tauri-plugin-clash-verge-sysinfo/src/lib.rs` | 导出 `sysinfo`，避免新增依赖 |
+
 ## 安装使用注意
 
 1. **关闭自动检查更新**（设置 →「杂项设置」→「自动检查更新」）。否则官方发布新版本后会自动更新为官方版，本修改会被覆盖。

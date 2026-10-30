@@ -92,6 +92,10 @@ fn after_change_clash_mode() {
 
 /// Propagates mihomo PATCH failures so the frontend can roll back its optimistic mode.
 pub async fn change_clash_mode(mode: String) -> Result<(), String> {
+    if mode.as_str() == "rule" && Config::clash().await.data_arc().get_mode().as_deref() != Some("rule") {
+        super::claude_desktop::quit_claude_desktop().await?;
+    }
+
     let mut mapping = Mapping::new();
     mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
     let json_value = serde_json::json!({

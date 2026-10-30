@@ -10,6 +10,7 @@ use deelevate::{PrivilegeLevel, Token};
 #[cfg(unix)]
 pub use libc;
 use parking_lot::RwLock;
+pub use sysinfo;
 use sysinfo::{Networks, System};
 use tauri::{
     Manager as _, Runtime,
