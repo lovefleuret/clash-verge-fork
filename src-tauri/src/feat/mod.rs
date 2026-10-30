@@ -1,5 +1,6 @@
 mod backup;
 mod clash;
+mod claude_desktop;
 mod config;
 mod core_upgrade;
 mod dns;
