@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |---|---|
-| 当前基于 | `v2.5.8` |
+| 当前基于 | `v2.5.10` |
 | 修改分支 | `feature/tray-mode-icon` |
 | 打包方式 | 本地编译（Windows），或 GitHub Actions 云端打包（全平台，见下文） |
 
@@ -119,7 +119,7 @@ pnpm build -c fork/tauri-no-updater.json
 ```bash
 git fetch upstream --tags
 git switch feature/tray-mode-icon
-git rebase --onto v2.6.0 v2.5.8
+git rebase --onto v2.6.0 v2.5.10
 ```
 
 `rebase --onto <新 tag> <旧 tag>` 把「旧 tag 之后的本修改」搬到新 tag 上。之后每次升级，把 `<旧 tag>` 换成上一次基于的版本，并更新本文开头表格中的「当前基于」。
