@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 当前基于 | `v2.5.10` |
-| 修改分支 | `feature/tray-mode-icon` |
+| 修改分支 | `fork-main` |
 | 打包方式 | 本地编译（Windows），或 GitHub Actions 云端打包（全平台，见下文） |
 
 ## 修改内容：托盘图标显示出站模式
@@ -106,7 +106,7 @@ pnpm build -c fork/tauri-no-updater.json
 工作流文件：`.github/workflows/fork-build.yml`，**只能手动触发**，不会自动运行。
 
 1. 打开仓库的 Actions 页面 → 左侧选择 **Fork Build** → 右侧点 **Run workflow**。
-2. 选择分支（`feature/tray-mode-icon`），勾选要打包的平台（默认 7 个全选）。
+2. 选择分支（`fork-main`），勾选要打包的平台（默认 7 个全选）。
 3. 需要发布到 Release 页面时，勾选 **Publish a GitHub Release**，否则只生成临时下载文件。
 4. 点 **Run workflow**，等待 30～40 分钟（之后有编译缓存会快一些）。
 
@@ -138,7 +138,7 @@ pnpm build -c fork/tauri-no-updater.json
 
 ```bash
 git fetch upstream --tags
-git switch feature/tray-mode-icon
+git switch fork-main
 git rebase --onto v2.6.0 v2.5.10
 ```
 
@@ -153,7 +153,7 @@ git rebase --onto v2.6.0 v2.5.10
 解决冲突后执行 `git rebase --continue`，然后在本地重新执行上面的「编译打包」三条命令，或者推送后用 GitHub Actions 打包。推送命令：
 
 ```bash
-git push --force-with-lease origin feature/tray-mode-icon
+git push --force-with-lease origin fork-main
 ```
 
 rebase 会改写提交历史，所以推送必须带 `--force-with-lease`，这是正常的。
