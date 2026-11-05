@@ -23,6 +23,10 @@ BADGE = {16: (9, 1), 24: (13, 1.5), 32: (17, 2), 48: (27, 3), 64: (35, 4), 256: 
 
 MODE_COLOR = {"rule": (13, 148, 136, 255), "global": (37, 99, 235, 255), "direct": (107, 114, 128, 255)}
 
+# Windows tray sizes at 100%-400% display scale. The shell scales icons poorly, so the app
+# picks the frame matching the current scale instead of handing it the 256px one.
+TRAY_SIZES = (16, 20, 24, 28, 32, 36, 40, 48, 56, 64)
+
 # base file -> (output stem, is_mono)
 BASES = {
     "tray-icon.ico": ("tray-icon", False),
@@ -50,7 +54,7 @@ def glyph_mask(mode: str, size: int, big: int, cx: float, cy: float, unit: float
         h = stroke / 2
         d.ellipse([p(-rx - h, -ry - h), p(rx + h, ry + h)], outline=255, width=w(stroke))
 
-    # Tauri hands the largest ICO frame to the OS, which downsamples it for the tray,
+    # macOS gets the largest ICO frame and downsamples it for the menu bar,
     # so large frames get heavier strokes to survive the scaling.
     sw = 1 if size <= 32 else 1.5
     if mode == "direct":
@@ -115,6 +119,13 @@ def ico_frames(path: Path):
     return frames
 
 
+def with_tray_sizes(frames):
+    by_size = {f.width: f for f in frames}
+    for size in TRAY_SIZES:
+        by_size.setdefault(size, frames[-1].resize((size, size), Image.LANCZOS))
+    return [by_size[size] for size in sorted(by_size)]
+
+
 def write_ico(path: Path, frames):
     """PNG-compressed ICO, same layout as the original tray icons."""
     blobs = []
@@ -135,6 +146,8 @@ def main(src: Path, out: Path):
     out.mkdir(parents=True, exist_ok=True)
     for base, (stem, mono) in BASES.items():
         frames = ico_frames(src / base)
+        if not mono:
+            frames = with_tray_sizes(frames)
         for mode in ("rule", "global", "direct"):
             target = out / f"{stem}-{mode}.ico"
             write_ico(target, [compose(f, mode, mono, MODE_COLOR[mode]) for f in frames])

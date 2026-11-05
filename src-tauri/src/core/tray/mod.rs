@@ -73,6 +73,48 @@ impl OutboundMode {
     }
 }
 
+/// Smallest frame of an ICO that is at least `size` px wide; `None` for other formats.
+#[cfg(target_os = "windows")]
+fn ico_frame(bytes: &[u8], size: u32) -> Option<&[u8]> {
+    if bytes.get(..4)? != [0, 0, 1, 0] {
+        return None;
+    }
+    let count = usize::from(u16::from_le_bytes(bytes.get(4..6)?.try_into().ok()?));
+    let (_, offset, len) = bytes
+        .get(6..6 + count * 16)?
+        .chunks_exact(16)
+        .filter_map(|entry| {
+            let width = match *entry.first()? {
+                0 => 256,
+                width => u32::from(width),
+            };
+            let len = u32::from_le_bytes(entry.get(8..12)?.try_into().ok()?) as usize;
+            let offset = u32::from_le_bytes(entry.get(12..16)?.try_into().ok()?) as usize;
+            Some((width, offset, len))
+        })
+        .filter(|(width, ..)| *width >= size)
+        .min_by_key(|(width, ..)| *width)?;
+    bytes.get(offset..offset.checked_add(len)?)
+}
+
+/// `Image::from_bytes` decodes the largest ICO frame and the Windows shell scales it poorly,
+/// so Windows gets the frame matching the tray size for the primary display's scale.
+fn tray_image(bytes: &[u8]) -> tauri::Result<tauri::image::Image<'static>> {
+    #[cfg(target_os = "windows")]
+    {
+        let scale = handle::Handle::app_handle()
+            .primary_monitor()
+            .ok()
+            .flatten()
+            .map_or(1.0, |monitor| monitor.scale_factor());
+        let frame = ico_frame(bytes, (16.0 * scale).round() as u32);
+        if let Some(image) = frame.and_then(|frame| tauri::image::Image::from_bytes(frame).ok()) {
+            return Ok(image);
+        }
+    }
+    tauri::image::Image::from_bytes(bytes)
+}
+
 pub struct Tray {
     limiter: SystemLimiter,
     #[cfg(target_os = "macos")]
@@ -294,7 +336,7 @@ impl Tray {
                 false
             }
         };
-        let icon = Some(tauri::image::Image::from_bytes(&icon_bytes)?);
+        let icon = Some(tray_image(&icon_bytes)?);
 
         logging_error!(Type::Tray, tray.set_icon_with_as_template(icon, template));
 
@@ -406,7 +448,7 @@ impl Tray {
         let verge = Config::verge().await.data_arc();
 
         let icon_bytes = TrayState::get_tray_icon(&verge).await.1;
-        let icon = tauri::image::Image::from_bytes(&icon_bytes)?;
+        let icon = tray_image(&icon_bytes)?;
 
         #[cfg(target_os = "linux")]
         let builder = TrayIconBuilder::with_id(TRAY_ID).icon(icon).icon_as_template(false);

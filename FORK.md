@@ -182,7 +182,7 @@ rebase 会改写提交历史，所以推送必须带 `--force-with-lease`，这�
 
 图标由脚本生成：在原图标右下角叠加几何绘制的符号角标，输出与原图标相同的 PNG 压缩 ICO。只需要 Python（Pillow）。
 
-托盘实际只用 ICO 里最大的 256px 帧，由系统缩小到托盘尺寸，所以调整时以预览图里缩小后的效果为准。
+macOS 的托盘只用 ICO 里最大的 256px 帧，由系统缩小到托盘尺寸，调整时以预览图里缩小后的效果为准。Windows 按显示缩放比例取 ICO 里同尺寸的帧（100% 为 16px，125% 为 20px，依此类推），避免系统缩放产生锯齿，生成脚本的 `TRAY_SIZES` 列出了这些尺寸。
 
 ```bash
 python fork/gen-tray-mode-icons.py src-tauri/icons <临时输出目录>
