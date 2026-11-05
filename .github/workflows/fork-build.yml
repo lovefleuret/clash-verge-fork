@@ -226,8 +226,9 @@ jobs:
           cat > notes.md << EOF
           基于官方 Clash Verge Rev v${version}，提交 \`${GITHUB_SHA::8}\`。修改内容见 [FORK.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/FORK.md)。
 
-          - 安装后请在「设置 → 杂项设置」中关闭「自动检查更新」，否则会被官方版本覆盖。
-          - 安装包没有代码签名：Windows 提示「未知发布者」时选择「仍要运行」；macOS 提示「已损坏」时，在终端执行 \`xattr -cr "/Applications/Clash Verge.app"\`。
+          - 启动时不再弹出更新提示，发现新版本时只在左上角显示 New。不要在 New 打开的窗口里点「更新」，否则会被官方版本覆盖。
+          - Windows 安装包没有代码签名，提示「未知发布者」时选择「仍要运行」。
+          - macOS 安装包只有 ad-hoc 签名，没有经过 Apple 公证：用仓库里的 \`fork/install-macos.sh\` 安装可以直接打开；用浏览器下载的会被拦截，安装后在终端执行 \`xattr -cr "/Applications/Clash Verge.app"\`。
           EOF
           gh release create "$tag" dist/* \
             --target "$GITHUB_SHA" \

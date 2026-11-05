@@ -63,11 +63,31 @@
 | `src-tauri/src/feat/clash.rs` | 切换到规则模式前调用上面的逻辑 |
 | `crates/tauri-plugin-clash-verge-sysinfo/src/lib.rs` | 导出 `sysinfo`，避免新增依赖 |
 
+## 修改内容：关闭更新弹窗，只保留 New 按钮
+
+官方版本会在后台静默下载新版本，并在下次启动时弹窗询问是否安装。本版本去掉了后台下载和这个弹窗，发现新版本时只在左上角显示 New，不点它就不会下载或安装。
+
+| 文件 | 说明 |
+|---|---|
+| `src-tauri/src/core/updater.rs` | 用 `BACKGROUND_UPDATES` 关闭后台下载和启动弹窗，并清理已缓存的更新 |
+
+## 修改内容：macOS ad-hoc 签名
+
+`fork/tauri-no-updater.json` 中设置了 `signingIdentity: "-"`，打包时自动做 ad-hoc 签名，不需要 Apple 账号。它没有经过 Apple 公证，所以能否直接打开取决于下载方式，见下文。
+
 ## 安装使用注意
 
-1. **关闭自动检查更新**（设置 →「杂项设置」→「自动检查更新」）。否则官方发布新版本后会自动更新为官方版，本修改会被覆盖。
-2. 安装包没有代码签名：Windows 会提示「未知发布者」，选择「仍要运行」即可；macOS 会提示「已损坏」，在终端执行 `xattr -cr "/Applications/Clash Verge.app"` 后再打开。
-3. 版本号与官方相同，安装时会直接覆盖已安装的官方版。
+1. **保持「自动检查更新」开启**（设置 →「杂项设置」），关闭后 New 不会显示。
+2. **不要在 New 打开的窗口里点「更新」**：下载的是官方版，会覆盖本修改。要升级就同步官方版本后重新打包。
+3. macOS 用下面的脚本安装，装好后可以直接打开。脚本会下载 `fork-main` 最新一次成功的构建，退出正在运行的 Clash Verge 并替换 App，需要已安装并登录 `gh`：
+
+   ```bash
+   bash fork/install-macos.sh
+   ```
+
+   用浏览器下载 dmg 会被 macOS 打上隔离标记，打开时被拦截。这种情况在安装后执行 `xattr -cr "/Applications/Clash Verge.app"`。
+4. Windows 安装包没有代码签名，提示「未知发布者」时选择「仍要运行」。
+5. 版本号与官方相同，安装时会直接覆盖已安装的官方版。
 
 ## 编译环境（Windows）
 
